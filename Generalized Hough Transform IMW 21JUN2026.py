@@ -12,7 +12,7 @@ detect_text = False
 
 if generate_images_from_pdf:
     with tempfile.TemporaryDirectory() as path:
-        images_from_path = convert_from_path('Sheets_selected_8 - P&IDs_2026-04-29_04-51-12pm.pdf', output_folder="PandID images", dpi = 200, output_file='page', fmt="jpeg")
+        images_from_path = convert_from_path(r'C:\Users\admin\Documents\Python\Sheets_selected_8 - P&IDs_2026-04-29_04-51-12pm.pdf', output_folder=r"C:\Users\admin\Documents\Python\PandID images", dpi = 200, output_file='page', fmt="jpeg")
 """
 images = convert_from_path('3pagepdf.pdf')
 
@@ -27,11 +27,11 @@ cv2.imshow("PandID", np.array(images[1]))
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 """
-path_pattern = "Hough PandID"
+path_pattern = r"C:\Users\admin\Documents\Python\Hough PandID"
 PandID_paths = glob.glob(path_pattern + r"/**/*", recursive=True)
 #print(PandID_paths)
 
-path_pattern = "Hough key"
+path_pattern = r"C:\Users\admin\Documents\Python\Hough key"
 key_paths = glob.glob(path_pattern + r"/**/*", recursive=True)
 #print(key_paths)
 
@@ -41,67 +41,76 @@ key_paths = glob.glob(path_pattern + r"/**/*", recursive=True)
 #Comment out if don't want to rotate
 #template = cv2.rotate(template, cv2.ROTATE_90_CLOCKWISE)
 
-def box_detection(template, image, img_edges, vote_fraction, threshold_value):
+def box_detection(template_paths, image, img_edges, vote_fraction, threshold_value):
     #image = cv2.imread("PandID with valves.jpg")
-    template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    
-
-    # Edge maps
-    #templ_edges = cv2.Canny(template, 50, 150)
-    #img_edges = cv2.Canny(gray, 50, 150)
-
-
-    #ret, templ_edges = cv2.threshold(template, 127, 255, cv2.THRESH_BINARY)
-    #ret, img_edges = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-
-    #30 or 230, try both or other values and maybe thresholding, affects line thickness in template
-    ret, templ_edges = cv2.threshold(template, threshold_value, 255, cv2.THRESH_BINARY_INV)
-    #print(cv2.countNonZero(templ_edges))
-    #print(templ_edges.shape)
-    max_possible_votes = cv2.countNonZero(templ_edges)
-    vote_count = int(max_possible_votes * vote_fraction)
-
-    #This shows what the template looks like and is pretty important to diagnostics/ explaining process.  Uncomment line below to show when teaching.
-    #cv2.imshow("templ_edges", templ_edges)
-
-
 
     positions = []
     votes = []
     height = []
     width = []
-    for i in range(4):
-        # Create Ballard detector
-        gh = cv2.createGeneralizedHoughBallard()
-
-         # Optional tuning
-        gh.setVotesThreshold(vote_count)
+    coords = []
+    for template_path in template_paths:
+        template = cv2.imread(template_path)
+        template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         
-        # Set template
-        gh.setTemplate(templ_edges)
-        #h, w = template.shape[:2]
-        h, w = templ_edges.shape
-        #print(template.shape[:2])
-        #print(templ_edges.shape)
-        #print(templ_edges.shape)
-        #print(i)
-        #print(h)
-        #print(w)
-        templ_edges = cv2.rotate(templ_edges, cv2.ROTATE_90_CLOCKWISE)
-        
-        #gh.setMinDist(min(template.shape[:2]))
 
-        # Detect
-        positions_rotation, votes_rotation = gh.detect(img_edges)
-        #print(type(positions_rotation))
-        #print(type(votes_rotation))
-        if positions_rotation is not None:
-            #print(positions)
-            height += [h]*positions_rotation.shape[1]
-            width += [w]*positions_rotation.shape[1]
-            positions += [positions_rotation]
-        if votes_rotation is not None:
-            votes += [votes_rotation]
+        # Edge maps
+        #templ_edges = cv2.Canny(template, 50, 150)
+        #img_edges = cv2.Canny(gray, 50, 150)
+
+
+        #ret, templ_edges = cv2.threshold(template, 127, 255, cv2.THRESH_BINARY)
+        #ret, img_edges = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+
+        #30 or 230, try both or other values and maybe thresholding, affects line thickness in template
+        ret, templ_edges = cv2.threshold(template, threshold_value, 255, cv2.THRESH_BINARY_INV)
+        #print(cv2.countNonZero(templ_edges))
+        #print(templ_edges.shape)
+        max_possible_votes = cv2.countNonZero(templ_edges)
+        vote_count = int(max_possible_votes * vote_fraction)
+
+        #This shows what the template looks like and is pretty important to diagnostics/ explaining process.  Uncomment line below to show when teaching.
+        #cv2.imshow("templ_edges", templ_edges)
+
+
+
+
+        for i in range(4):
+            templ_edges = cv2.rotate(templ_edges, cv2.ROTATE_90_CLOCKWISE)
+            # Create Ballard detector
+            gh = cv2.createGeneralizedHoughBallard()
+
+             # Optional tuning
+            gh.setVotesThreshold(vote_count)
+            
+            # Set template
+            gh.setTemplate(templ_edges)
+            #h, w = template.shape[:2]
+            h, w = templ_edges.shape
+            #print(template.shape[:2])
+            #print(templ_edges.shape)
+            #print(templ_edges.shape)
+            #print(i)
+            #print(h)
+            #print(w)
+
+            coord = np.where(templ_edges)
+            
+            #gh.setMinDist(min(template.shape[:2]))
+
+            # Detect
+            positions_rotation, votes_rotation = gh.detect(img_edges)
+            #print(type(positions_rotation))
+            #print(type(votes_rotation))
+            if positions_rotation is not None:
+                #print(positions)
+                height += [h]*positions_rotation.shape[1]
+                width += [w]*positions_rotation.shape[1]
+                positions += [positions_rotation]
+                #print(max(coord[0]))
+                coords += [coord]*positions_rotation.shape[1]
+            if votes_rotation is not None:
+                votes += [votes_rotation]
 
     if positions != []:
         #print(positions)
@@ -137,10 +146,17 @@ def box_detection(template, image, img_edges, vote_fraction, threshold_value):
         )
         #print(indices)
 
-        #readjus indices to apply non maximum suppression
+        #readjust indices to apply non maximum suppression
         detections = [detections[index] for index in indices]
         width = [width[index] for index in indices]
         height = [height[index] for index in indices]
+        coords = [coords[index] for index in indices]
+
+        #print(len(width))
+        #print(len(height))
+        #print(len(coords))
+        #print(list(zip(height, width)))
+        #print([m.shape for m in mask])
 
         for i, det in enumerate(detections):
             x = int(round(det[0]))
@@ -159,13 +175,131 @@ def box_detection(template, image, img_edges, vote_fraction, threshold_value):
                 (0, 255, 0),
                 2
             )
+            """
+            #calculate edges of mask
+            x1_mask = int(x - width[i] / 2)
+            x2_mask = int(x + width[i] / 2)
+            y1_mask = int(y - height[i] / 2)
+            y2_mask = int(y + height[i] / 2)
 
+            #calculate edges of image
+            x1_image = 0
+            y1_image = 0
+            x2_image = image.shape[1]
+            y2_image = image.shape[0]
+
+            #calculate edges of new mask overlays in image coordinates
+            x1_mask_permitted = max(x1_mask,x1_image)
+            #print("before")
+            x2_mask_permitted = min(x2_mask,x2_image)
+            #print("after")
+            y1_mask_permitted = max(y1_mask,y1_image)
+            y2_mask_permitted = min(y2_mask,y2_image)
+
+            #calculates edges of new mask in old mask coordinates
+            x1_mask_adjustment = x1_mask_permitted - x1_mask
+            x2_mask_adjustment = x2_mask_permitted - x2_mask
+            y1_mask_adjustment = y1_mask_permitted - y1_mask
+            y2_mask_adjustment = y2_mask_permitted - y2_mask
+
+            #print(x1_mask_adjustment)
+            #print(x2_mask_adjustment)
+            #print(y1_mask_adjustment)
+            #print(y2_mask_adjustment)
+            #print(w)
+            #print(h)
+            #print(w + x2_mask_adjustment)
+            #print(h + y2_mask_adjustment)
+            #print(mask[i].shape)
+
+            #print(y1_mask_permitted)
+            #print(y2_mask_permitted)
+            #print(x1_mask_permitted)
+            #print(x2_mask_permitted)
+
+            #print(type(mask[i]))
+            new_mask = mask[i][y1_mask_adjustment:h + y2_mask_adjustment, x1_mask_adjustment:w + x2_mask_adjustment]
+            
+            new_image_section = image[y1_mask_permitted:y2_mask_permitted, x1_mask_permitted:x2_mask_permitted]
+
+            #print(new_mask.shape)
+            #print(new_image_section.shape)
+
+            #masked_image = cv2.bitwise_and(new_image_section, new_image_section, mask = new_mask)
+            #masked_image = new_image_section[new_mask != 0] = (0, 0, 255)
+            #new_image_section[new_mask] = (0, 0, 255)
+            #masked_image = new_image_section
+            color = (0, 0, 255)
+            #comment out
+            color_layer = np.full_like(new_image_section, color, dtype=np.uint8)
+
+            colored_mask = cv2.bitwise_and(color_layer, color_layer, mask=new_mask)
+            new_mask_inverse = cv2.bitwise_not(new_mask)
+            image_cutout = cv2.bitwise_and(new_image_section, new_image_section, mask=new_mask_inverse)
+            masked_image = cv2.add(image_cutout, colored_mask)
+            #masked_image = np.where(new_mask, color_layer, new_image_section)
+
+            image[y1_mask_permitted:y2_mask_permitted, x1_mask_permitted:x2_mask_permitted] = masked_image
+            """
+            #comment out
+            color = (0, 0, 255)
+            # Vectorized assignment
+            #could use old mask and exclude coords based on permitted values
+            #coords = np.where(new_mask)
+            coord = coords[i]
+            y_coord = coord[0].copy()
+            x_coord = coord[1].copy()
+            #print(len(x_coord))
+            #print(len(y_coord))
+            #print(coords[0])
+            #print(coords[1])
+            #print(int(y - height[i] / 2))
+            #print(max(y_coord))
+            y_coord += int(y - height[i] / 2)
+            x_coord += int(x - width[i] / 2)
+
+            
+            y_coord = y_coord[y_coord >= 0]
+            x_coord = x_coord[y_coord >= 0]
+
+            #print(len(x_coord))
+            #print(len(y_coord))
+            #print(max(y_coord))
+            x_coord = x_coord[y_coord <= image.shape[0]]
+            y_coord = y_coord[y_coord <= image.shape[0]]
+            #print(image.shape[0])
+            
+            #print(len(x_coord))
+            #print(len(y_coord))
+            #x_coord = x_coord[y_coord <= image.shape[0]]
+
+            y_coord = y_coord[x_coord >= 0]
+            x_coord = x_coord[x_coord >= 0]
+
+            y_coord = y_coord[x_coord <= image.shape[1]]
+            x_coord = x_coord[x_coord <= image.shape[1]]
+            
+            coord = np.array([y_coord,x_coord])
+            #coords[0] = np.max(coords[0], h)
+            #coords[0] = np.min(coords[0], 0)
+            #coords[1] = np.max(coords[0], w)
+            #coords[1] = np.min(coords[0], 0)
+
+            #print(coord[0])
+            #print(coord[1])
+
+            image[coord[0], coord[1]] = color
+            #print("pass")
+            
+            #image_cutout[coords[0], coords[1]] = color
+            #image[y1_mask_permitted:y2_mask_permitted, x1_mask_permitted:x2_mask_permitted] = image_cutout
+            
             # Center point
             cv2.circle(
                 image,
                 (x, y),
                 4,
-                (0, 0, 255),
+                (255, 0, 255),
                 -1
             )
 
@@ -195,23 +329,14 @@ for i, PandID_path in enumerate(PandID_paths):
     #print(pytesseract.image_to_string(Image.open(PandID_path)))
     #pytesseract.image_to_string(Image.fromarray(img_rgb))
     PandID_image = cv2.imread(PandID_path)
-    if detect_text:
-        print(pytesseract.image_to_string(Image.fromarray(PandID_image)))
-        print("rotated")
-        PandID_image_rotated = cv2.rotate(PandID_image, cv2.ROTATE_90_CLOCKWISE)
-        cv2.imshow("rotated", PandID_image_rotated)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        print(pytesseract.image_to_string(Image.fromarray(PandID_image_rotated)))
 
     PandID_gray = cv2.cvtColor(PandID_image, cv2.COLOR_BGR2GRAY)
     ret, PandID_edges = cv2.threshold(PandID_gray, threshold_value, 255, cv2.THRESH_BINARY_INV) #ret is a place holder return that isn't used anywhere else
-    for key_path in key_paths:
-        key_image = cv2.imread(key_path)
-        PandID_edges = box_detection(key_image, PandID_image, PandID_edges, vote_fraction, threshold_value)
 
-        #key_image_90_rotated = cv2.rotate(key_image, cv2.ROTATE_90_CLOCKWISE)
-        #PandID_edges = box_detection(key_image_90_rotated, PandID_image, PandID_edges, vote_fraction, threshold_value)
+    PandID_edges = box_detection(key_paths, PandID_image, PandID_edges, vote_fraction, threshold_value)
+
+    #key_image_90_rotated = cv2.rotate(key_image, cv2.ROTATE_90_CLOCKWISE)
+    #PandID_edges = box_detection(key_image_90_rotated, PandID_image, PandID_edges, vote_fraction, threshold_value)
 
     img_edges = PandID_edges
     image = PandID_image
@@ -242,7 +367,16 @@ for i, PandID_path in enumerate(PandID_paths):
     #cv2.waitKey(0)
     #cv2.destroyAllWindows()
 
-    cv2.imwrite(f"PandID results//test_{i}.jpg", image)
+    if detect_text:
+        print(pytesseract.image_to_string(Image.fromarray(PandID_image)))
+        print("rotated")
+        PandID_image_rotated = cv2.rotate(PandID_image, cv2.ROTATE_90_CLOCKWISE)
+        cv2.imshow("rotated", PandID_image_rotated)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        print(pytesseract.image_to_string(Image.fromarray(PandID_image_rotated)))
+
+    cv2.imwrite(fr"C:\Users\admin\Documents\Python\PandID results\test_{i}.jpg", image)
 
 ############################
 #text detection using neural networks
