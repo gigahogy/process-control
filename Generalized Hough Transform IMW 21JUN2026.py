@@ -8,7 +8,7 @@ from pdf2image import convert_from_path
 import tempfile
 
 generate_images_from_pdf = False
-detect_text = False
+detect_text = True
 
 if generate_images_from_pdf:
     with tempfile.TemporaryDirectory() as path:
@@ -241,6 +241,10 @@ def box_detection(template_paths, image, img_edges, vote_fraction, threshold_val
 
             image[y1_mask_permitted:y2_mask_permitted, x1_mask_permitted:x2_mask_permitted] = masked_image
             """
+        #print(len(detections))
+        #print(len(coords))
+        """
+        for i in range(len(coords)):
             #comment out
             color = (0, 0, 255)
             # Vectorized assignment
@@ -290,10 +294,16 @@ def box_detection(template_paths, image, img_edges, vote_fraction, threshold_val
 
             image[coord[0], coord[1]] = color
             #print("pass")
+            """
             
             #image_cutout[coords[0], coords[1]] = color
             #image[y1_mask_permitted:y2_mask_permitted, x1_mask_permitted:x2_mask_permitted] = image_cutout
-            
+
+        color = (0, 0, 255)
+        dilation = 1
+        dilation_iterations = None
+        image = over_write_icons(image, detections, coords, height, width, color, dilation, dilation_iterations)
+        for i in range(len(coords)):
             # Center point
             cv2.circle(
                 image,
@@ -303,8 +313,93 @@ def box_detection(template_paths, image, img_edges, vote_fraction, threshold_val
                 -1
             )
 
-    return img_edges
+    return img_edges, detections, coords, height, width
 
+def over_write_icons(image, detections, coords, height, width, color, dilation, dilation_iterations):
+
+    for i in range(len(coords)):
+                
+        x = int(round(detections[i][0]))
+        y = int(round(detections[i][1]))
+
+        #comment out
+        #color = (0, 0, 255)
+        # Vectorized assignment
+        #could use old mask and exclude coords based on permitted values
+        #coords = np.where(new_mask)
+        coord = coords[i]
+        if dilation != 1:
+            template = np.zeros((height[i], width[i]))
+            template[coord[0], coord[1]] = 255
+
+            kernel = np.ones(dilation, np.uint8)
+
+            # Apply dilation
+            dilated = cv2.dilate(template, kernel, iterations=dilation_iterations)
+
+
+            coord = np.where(dilated)
+
+            # Show the result
+            #cv2.imshow("Detected Lines", template)
+            #cv2.waitKey(0)
+            #cv2.destroyAllWindows()
+            
+            #print(template.shape)
+        
+        y_coord = coord[0].copy()
+        x_coord = coord[1].copy()
+        #print(len(x_coord))
+        #print(len(y_coord))
+        #print(coords[0])
+        #print(coords[1])
+        #print(int(y - height[i] / 2))
+        #print(max(y_coord))
+        y_coord += int(y - height[i] / 2)
+        x_coord += int(x - width[i] / 2)
+
+        
+        y_coord = y_coord[y_coord >= 0]
+        x_coord = x_coord[y_coord >= 0]
+
+        #print(len(x_coord))
+        #print(len(y_coord))
+        #print(max(y_coord))
+        x_coord = x_coord[y_coord <= image.shape[0]]
+        y_coord = y_coord[y_coord <= image.shape[0]]
+        #print(image.shape[0])
+        
+        #print(len(x_coord))
+        #print(len(y_coord))
+        #x_coord = x_coord[y_coord <= image.shape[0]]
+
+        y_coord = y_coord[x_coord >= 0]
+        x_coord = x_coord[x_coord >= 0]
+
+        y_coord = y_coord[x_coord <= image.shape[1]]
+        x_coord = x_coord[x_coord <= image.shape[1]]
+        
+        coord = np.array([y_coord,x_coord])
+        #coords[0] = np.max(coords[0], h)
+        #coords[0] = np.min(coords[0], 0)
+        #coords[1] = np.max(coords[0], w)
+        #coords[1] = np.min(coords[0], 0)
+
+        #print(coord[0])
+        #print(coord[1])
+
+        image[coord[0], coord[1]] = color
+        #color_layer = np.full_like(template, color, dtype=np.uint8)
+        #colored_mask = cv2.bitwise_and(color_layer, color_layer, mask=template)
+        #new_mask_inverse = cv2.bitwise_not(template)
+        #image_cutout = cv2.bitwise_and(new_image_section, new_image_section, mask=new_mask_inverse)
+        #masked_image = cv2.add(image_cutout, colored_mask)
+        #h_2 = int(y+height[i])
+        #w_2 = int(x+width[i])
+        #image[y:int(y+height[i]), x:int(x+width[i])] = template
+
+    return image
+    
 #current images use 100% zoom and 0.22 vote_fraction
 vote_fraction = 0.25 #fraction of overlapping pixels required for a positive result
 
@@ -333,13 +428,14 @@ for i, PandID_path in enumerate(PandID_paths):
     PandID_gray = cv2.cvtColor(PandID_image, cv2.COLOR_BGR2GRAY)
     ret, PandID_edges = cv2.threshold(PandID_gray, threshold_value, 255, cv2.THRESH_BINARY_INV) #ret is a place holder return that isn't used anywhere else
 
-    PandID_edges = box_detection(key_paths, PandID_image, PandID_edges, vote_fraction, threshold_value)
+    boxed_image = PandID_image.copy()
+    PandID_edges, detections, coords, height, width = box_detection(key_paths, boxed_image, PandID_edges, vote_fraction, threshold_value)
 
     #key_image_90_rotated = cv2.rotate(key_image, cv2.ROTATE_90_CLOCKWISE)
     #PandID_edges = box_detection(key_image_90_rotated, PandID_image, PandID_edges, vote_fraction, threshold_value)
 
     img_edges = PandID_edges
-    image = PandID_image
+    image = boxed_image
 
     #cv2.imshow("Ballard Detection", image)
     #cv2.waitKey(0)
@@ -368,13 +464,21 @@ for i, PandID_path in enumerate(PandID_paths):
     #cv2.destroyAllWindows()
 
     if detect_text:
-        print(pytesseract.image_to_string(Image.fromarray(PandID_image)))
+        dilation_iterations = 1
+        dilation = 10
+        color = (255, 255, 255)
+        removed_icons_PandID_image = over_write_icons(PandID_image.copy(), detections, coords, height, width, color, dilation, dilation_iterations)
+        #cv2.imshow("Ballard Detection", image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        print(pytesseract.image_to_string(Image.fromarray(removed_icons_PandID_image)))
         print("rotated")
         PandID_image_rotated = cv2.rotate(PandID_image, cv2.ROTATE_90_CLOCKWISE)
-        cv2.imshow("rotated", PandID_image_rotated)
+        #cv2.imshow("rotated", PandID_image_rotated)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         print(pytesseract.image_to_string(Image.fromarray(PandID_image_rotated)))
+        cv2.imwrite(fr"C:\Users\admin\Documents\Python\PandID results\text_test_{i}.jpg", removed_icons_PandID_image)
 
     cv2.imwrite(fr"C:\Users\admin\Documents\Python\PandID results\test_{i}.jpg", image)
 
