@@ -8,7 +8,7 @@ from pdf2image import convert_from_path
 import tempfile
 
 generate_images_from_pdf = False
-detect_text = True
+detect_text = False
 
 if generate_images_from_pdf:
     with tempfile.TemporaryDirectory() as path:
@@ -49,6 +49,7 @@ def box_detection(template_paths, image, img_edges, vote_fraction, threshold_val
     height = []
     width = []
     coords = []
+    max_votes = []
     for template_path in template_paths:
         template = cv2.imread(template_path)
         template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
@@ -109,13 +110,16 @@ def box_detection(template_paths, image, img_edges, vote_fraction, threshold_val
                 positions += [positions_rotation]
                 #print(max(coord[0]))
                 coords += [coord]*positions_rotation.shape[1]
-            if votes_rotation is not None:
+                #if votes_rotation is not None:
                 votes += [votes_rotation]
+                max_votes += [max_possible_votes]*positions_rotation.shape[1]
 
     if positions != []:
         #print(positions)
         #print(votes)
+        #print(positions)
         positions = np.concatenate(positions, axis = 1)
+        #print(positions)
         votes = np.concatenate(votes, axis = 1)
         #print(positions)
         #print(votes)
@@ -134,7 +138,21 @@ def box_detection(template_paths, image, img_edges, vote_fraction, threshold_val
 
         #print(type([int(vote) for vote in votes[0,:,0]]))
         boxes = [[int(round(det[0])), int(round(det[1])), width[i], height[i]] for i, det in enumerate(detections)]
-        scores = [int(vote) for vote in votes[0,:,0]]
+
+        #max_possible_votes = cv2.countNonZero(templ_edges)
+        #max_votes
+        #scores = [vote/max_votes[index] for index, vote in enumerate(votes[0,:,0])]
+
+        #this is a scoring heuristic I invented myself.
+        #I created it because it slightly rewards larger icons being fit but significantly rewards higher matching ratio.
+        #We want to slightly reward larger icons because smaller icon matching with same percentage might be a partial match and this rewards a full match.
+        #The partial match would be for if the larger icon contains the identical smaller icon in it as part of it.
+        #However, larger icons will have more random cross over so we have to heavily penalize extra pixels that don't contribute to the vote.
+        #This scoring algorithm strikes a very nice balance of slightly rewarding larger icons while heavily penalizing surplus pixels that do not contribute.
+        #That's exactly what we want.
+        scores = [vote**(vote/max_votes[index]) for index, vote in enumerate(votes[0,:,0])]
+        
+        #scores = [int(vote) for vote in votes[0,:,0]]
         score_threshold = 0
         nms_threshold = 0.3
         
